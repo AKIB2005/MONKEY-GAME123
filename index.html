@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>🐒 Monkey Game</title>
+  <meta name="description" content="Eat bananas, dodge stones! A fun jungle runner game.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Title -->
+  <div id="title-bar">
+    <span class="title-emoji">🐒</span>
+    <span id="game-title">MONKEY GAME</span>
+    <span class="title-emoji">🍌</span>
+  </div>
+
+  <!-- Canvas wrapper (particles & popups go here too) -->
+  <div id="canvas-wrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div id="milestone-toast">🏆 LEVEL UP!</div>
+    <div id="level-badge">LVL 1</div>
+  </div>
+
+  <!-- Stats bar below canvas -->
+  <div id="stats-bar">
+    <div class="stat-pill">
+      <span class="label">Score</span>
+      <span class="value" id="val-score">0</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Best</span>
+      <span class="value" id="val-high">0</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Level</span>
+      <span class="value" id="val-level">1</span>
+    </div>
+    <div class="stat-pill" style="cursor:pointer;" id="mute-btn" title="Toggle sound (M)">🔊</div>
+  </div>
+
+  <!-- Controls hint -->
+  <div id="controls-hint">
+    <kbd>SPACE</kbd> / <kbd>↑</kbd> Jump &nbsp;·&nbsp;
+    <kbd>R</kbd> Restart &nbsp;·&nbsp;
+    <kbd>M</kbd> Mute
+  </div>
+
+  <!-- JS files in dependency order -->
+  <script src="storage.js"></script>
+  <script src="audio.js"></script>
+  <script src="particles.js"></script>
+  <script src="sketch.js"></script>
+
+</body>
+</html>
