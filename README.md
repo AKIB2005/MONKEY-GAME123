@@ -1,64 +1,42 @@
-# 🐒 Monkey Game
+# MONKEY RUN — JUNGLE REBORN
 
-> **Eat bananas. Dodge stones. How far can you run?**
+The revival of a WhiteHat Jr. childhood game by Akib Shaikh. This is a dependency-free HTML5 Canvas endless runner that keeps the original monkey frames and banana art while adding a richer jungle, responsive controls, progression, and persistent player profile.
 
-A fast-paced jungle runner built with vanilla JavaScript and HTML5 Canvas — no frameworks, no dependencies.
+## Play locally
 
----
+Open `index.html` in a modern browser, or serve this folder with any static server:
 
-## 🎮 Play
-
-Open `index.html` in any modern browser. No install needed.
-
-| Control | Action |
-|---------|--------|
-| `SPACE` / `↑` | Jump |
-| `R` | Restart after Game Over |
-| `M` | Toggle sound on/off |
-| Tap (mobile) | Jump / Restart |
-
----
-
-## ✨ Features
-
-- 🍌 **Banana & Banana Bunch** pickups (+2 / +5 points)
-- 🪨 **Stone obstacles** — 3 lives, screen shake on hit
-- 📈 **6 difficulty levels** — speed and spawn rate increase with score
-- 🏆 **High score** saved in localStorage (persists across sessions)
-- 🎵 **Procedural sound effects** via Web Audio API (no audio files)
-- ✨ **Particle effects** — burst on banana collect, dust on stone hit
-- 📱 **Mobile / touch support**
-- 🔇 **Mute button**
-
----
-
-## 🗂 File Structure
-
-```
-MONKEY-GAME123/
-├── index.html       ← Entry point
-├── style.css        ← All styling & animations
-├── sketch.js        ← Main game engine & render loop
-├── audio.js         ← Web Audio API sound effects
-├── particles.js     ← Canvas particle system
-├── storage.js       ← localStorage (high score, settings)
-├── Monkey_01-10.png ← Monkey animation frames
-├── Banana.png       ← Single banana sprite
-├── Bananas.png      ← Banana bunch sprite
-├── stone.png        ← Stone obstacle sprite
-└── jungle2.jpg      ← Scrolling background
+```powershell
+python -m http.server 8765
 ```
 
----
+The project is static-hosting friendly and can be deployed directly to Vercel.
 
-## 🛠 Built With
+## Controls
 
-- **HTML5 Canvas** — rendering
-- **Vanilla JS (ES6)** — no libraries or frameworks
-- **Web Audio API** — procedural sound effects
-- **localStorage** — high score persistence
-- **Google Fonts** (Bangers + Nunito) — typography
+| Input | Action |
+| --- | --- |
+| Space / Up / tap | Jump (double jump supported) |
+| Down / mobile Slide | Slide below hanging hazards |
+| P | Pause or resume |
+| M | Toggle sound |
 
----
+## Gameplay
 
-Made with ❤️ | Originally built on Whitehat Jr, enhanced with modern JS
+- Collect bananas, bunches, and rare golden bananas for score.
+- Avoid rocks, spikes, and hanging trunks.
+- Shield and magnet power orbs provide temporary protection and collection help.
+- Speed and obstacle density increase with distance.
+- Day, sunset, and night color environments appear as the expedition advances.
+- High score, distance, bananas, unlocked trails, achievements, sound, and settings persist with `localStorage`.
+
+## Project structure
+
+- `index.html` — responsive menu, HUD, modal screens, and game canvas.
+- `sketch.js` — delta-time game loop, physics, collision, rendering, progression, and controls.
+- `storage.js` — safe persistent profile storage.
+- `audio.js` — browser-safe procedural sound effects.
+- `particles.js` — collection, impact, and milestone effects.
+- `Monkey_01.png`–`Monkey_10.png` — original running animation frames.
+
+No framework or build step is required.
