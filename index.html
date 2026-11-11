@@ -1,89 +1,60 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#07140e">
-  <meta name="description" content="MONKEY RUN: JUNGLE REBORN — a polished tropical endless runner.">
-  <title>MONKEY RUN — JUNGLE REBORN</title>
-  <link rel="icon" href="Monkey.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>🐒 Monkey Game</title>
+  <meta name="description" content="Eat bananas, dodge stones! A fun jungle runner game.">
+  <meta name="theme-color" content="#0d1f0f">
+  <link rel="icon" href="favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="brand">
-      <span class="brand-mark">MR</span>
-      <div>
-        <p class="eyebrow">JUNGLE REBORN</p>
-        <h1>MONKEY <span>RUN</span></h1>
-      </div>
-      <button class="icon-button" id="sound-button" aria-label="Toggle sound">SOUND</button>
-    </header>
 
-    <section class="game-frame" aria-label="Monkey Run game">
-      <canvas id="gameCanvas" width="960" height="540"></canvas>
-      <div class="loading-panel" id="loading-panel">
-        <div class="loading-logo">MONKEY <span>RUN</span></div>
-        <p>Waking the jungle...</p>
-        <div class="progress-track"><div id="loading-progress"></div></div>
-      </div>
-      <div class="game-hud" id="game-hud" hidden>
-        <div class="hud-stat"><small>SCORE</small><strong id="hud-score">0</strong></div>
-        <div class="hud-stat"><small>DISTANCE</small><strong id="hud-distance">0m</strong></div>
-        <div class="hud-stat banana-stat"><small>BANANAS</small><strong id="hud-bananas">0</strong></div>
-        <div class="hud-right">
-          <div class="power-list" id="power-list"></div>
-          <button class="pause-button" id="pause-button" aria-label="Pause game">II</button>
-        </div>
-      </div>
-      <div class="touch-controls" id="touch-controls" hidden>
-        <button data-control="slide">SLIDE</button>
-        <button data-control="jump">JUMP</button>
-      </div>
-    </section>
+  <!-- Title -->
+  <div id="title-bar">
+    <span class="title-emoji">🐒</span>
+    <span id="game-title">MONKEY GAME</span>
+    <span class="title-emoji">🍌</span>
+  </div>
 
-    <section class="menu-panel" id="menu-panel">
-      <p class="menu-kicker">THE CANOPY IS CALLING</p>
-      <h2>Run wild.<br><span>Stay golden.</span></h2>
-      <p class="menu-copy">Leap over danger, collect the jungle's rarest bananas, and outrun the night.</p>
-      <button class="primary-button" id="play-button">START RUN <span>→</span></button>
-      <div class="menu-actions">
-        <button class="text-button" data-panel="how">HOW TO PLAY</button>
-        <button class="text-button" data-panel="settings">SETTINGS</button>
-        <button class="text-button" data-panel="profile">PROFILE</button>
-      </div>
-      <div class="record-row">
-        <div><small>HIGH SCORE</small><strong id="menu-high-score">0</strong></div>
-        <div><small>BEST DISTANCE</small><strong id="menu-distance">0m</strong></div>
-        <div><small>TOTAL BANANAS</small><strong id="menu-bananas">0</strong></div>
-      </div>
-    </section>
+  <!-- Canvas wrapper (particles & popups go here too) -->
+  <div id="canvas-wrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div id="milestone-toast">🏆 LEVEL UP!</div>
+    <div id="level-badge">LVL 1</div>
+  </div>
 
-    <section class="modal" id="modal" hidden>
-      <div class="modal-card">
-        <button class="modal-close" id="modal-close" aria-label="Close">×</button>
-        <div id="modal-content"></div>
-      </div>
-    </section>
+  <!-- Stats bar below canvas -->
+  <div id="stats-bar">
+    <div class="stat-pill">
+      <span class="label">Score</span>
+      <span class="value" id="val-score">0</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Best</span>
+      <span class="value" id="val-high">0</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Level</span>
+      <span class="value" id="val-level">1</span>
+    </div>
+    <div class="stat-pill" style="cursor:pointer;" id="mute-btn" title="Toggle sound (M)">🔊</div>
+  </div>
 
-    <section class="end-panel" id="end-panel" hidden>
-      <p class="menu-kicker" id="end-kicker">RUN COMPLETE</p>
-      <h2 id="end-title">The jungle wins.</h2>
-      <div class="result-grid">
-        <div><small>SCORE</small><strong id="result-score">0</strong></div>
-        <div><small>DISTANCE</small><strong id="result-distance">0m</strong></div>
-        <div><small>BANANAS</small><strong id="result-bananas">0</strong></div>
-      </div>
-      <button class="primary-button" id="retry-button">RUN AGAIN <span>↻</span></button>
-      <button class="text-button" id="menu-button">BACK TO CAMP</button>
-    </section>
-  </main>
+  <!-- Controls hint -->
+  <div id="controls-hint">
+    <kbd>SPACE</kbd> / <kbd>↑</kbd> Jump &nbsp;·&nbsp;
+    <kbd>R</kbd> Restart &nbsp;·&nbsp;
+    <kbd>M</kbd> Mute
+  </div>
+
+  <!-- JS files in dependency order -->
   <script src="storage.js"></script>
   <script src="audio.js"></script>
   <script src="particles.js"></script>
+  <script src="fx.js"></script>
   <script src="sketch.js"></script>
+
 </body>
 </html>
