@@ -16,8 +16,23 @@ const muteBtn    = document.getElementById('mute-btn');
 
 const W = 800;
 const H = 400;
-const DPR = Math.min(window.devicePixelRatio || 1, 2);
-canvas.width = W * DPR; canvas.height = H * DPR;
+let SC = 1;
+function resize() {
+  const fs = !!document.fullscreenElement;
+  const maxW = fs ? Math.min(window.innerWidth, window.innerHeight * 2)
+                  : Math.min(window.innerWidth - 16, (window.innerHeight - 190) * 2, 1600);
+  const cssW = Math.max(320, Math.floor(maxW || 800));
+  canvas.style.width = cssW + 'px'; canvas.style.height = (cssW / 2) + 'px';
+  SC = cssW / W * Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(W * SC); canvas.height = Math.round(H * SC);
+}
+window.addEventListener('resize', resize);
+document.addEventListener('fullscreenchange', resize);
+resize();
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (wrapper.requestFullscreen) wrapper.requestFullscreen();
+}
 
 // ---- ASSET LOADING -----------------------------------------
 const IMGS = {};
@@ -53,6 +68,11 @@ let lastLevel = 1;
 let floats = [];
 let bgScroll = 0, nextFood = 40, nextObs = 110, nextMilestone = 25;
 let hitStop = 0, flash = 0, landSquash = 0;
+let ducking = false, duckTimer = 0, jumps = 0, spin = 0;
+let combo = 0, comboTimer = 0, comboPop = 0, banner = 0, bannerTxt = '';
+let shield = false, magnet = 0, x2 = 0, nextPower = 500, powerups = [];
+const boxH = () => ducking ? 40 : MONKEY_H;
+const boxY = () => MONKEY.y + (MONKEY_H - boxH());
 let muted = Save.isMuted();
 
 // Monkey
@@ -74,7 +94,7 @@ document.addEventListener('keydown', e => {
   if (keys[e.code]) return;
   keys[e.code] = true;
 
-  if (e.code === 'Space' || e.code === 'ArrowUp') {
+  if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
     e.preventDefault();
     jumpQueued = true;
     if (state === 'gameover') startGame();
@@ -85,16 +105,26 @@ document.addEventListener('keydown', e => {
     if (state === 'gameover' || state === 'playing') startGame();
   }
   if (e.code === 'KeyM') toggleMute();
+  if (e.code === 'KeyF') toggleFullscreen();
+  if (e.code === 'ArrowDown') e.preventDefault();
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 
+let touchY0 = 0;
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  jumpQueued = true;
+  touchY0 = e.touches[0].clientY;
   if (state === 'gameover' || state === 'start') startGame();
-  if (state === 'paused') { togglePause(); jumpQueued = false; }
+  if (state === 'paused') togglePause();
 }, { passive: false });
+canvas.addEventListener('touchend', e => {   // tap = jump, swipe down = duck
+  e.preventDefault();
+  if (e.changedTouches[0].clientY - touchY0 > 35) duckTimer = 30;
+  else if (state === 'playing') jumpQueued = true;
+}, { passive: false });
+const fsBtn = document.getElementById('fs-btn');
+fsBtn && fsBtn.addEventListener('click', toggleFullscreen);
 
 muteBtn && muteBtn.addEventListener('click', toggleMute);
 
@@ -144,6 +174,8 @@ function initGame() {
 
   bgScroll = 0; nextFood = 40; nextObs = 110; nextMilestone = 25;
   hitStop = 0; flash = 0; landSquash = 0; FX.reset();
+  ducking = false; duckTimer = 0; jumps = 0; spin = 0; combo = 0; comboTimer = 0; comboPop = 0; banner = 0;
+  shield = false; magnet = 0; x2 = 0; nextPower = 500; powerups = [];
   MONKEY.y         = GROUND_Y - MONKEY_H;
   MONKEY.vy        = 0;
   MONKEY.frame     = 0;
@@ -215,6 +247,10 @@ function spawnFood() {
 function spawnObstacle() {
   if (--nextObs > 0) return;
   nextObs = Math.max(100, 270 - Math.floor(score / 10) * 13) * (0.85 + Math.random() * 0.4);
+  if (currentLevel >= 2 && Math.random() < 0.3) {   // low-flying bird: duck under it!
+    obstacles.push({ type: 'bird', x: W + 20, y: GROUND_Y - 82 + Math.random() * 6, w: 46, h: 28, life: 320, wobble: 0, ph: Math.random() * 6 });
+    return;
+  }
   const count = (currentLevel >= 4 && Math.random() < 0.2) ? 2 : 1;
   for (let i = 0; i < count; i++) {
     obstacles.push({ x: W + 20 + i * 70, y: GROUND_Y - 52, w: 46, h: 52, life: 320, wobble: 0 });
@@ -225,6 +261,11 @@ function spawnObstacle() {
 function update() {
   if (hitStop > 0) { hitStop--; return; }
   framesPassed++;
+  if (magnet > 0) magnet--;
+  if (x2 > 0) x2--;
+  if (banner > 0) banner--;
+  if (comboTimer > 0 && --comboTimer === 0) combo = 0;
+  comboPop *= 0.9;
   if (hitCooldown  > 0) hitCooldown--;
   if (shakeDuration > 0) shakeDuration--;
 
@@ -242,6 +283,7 @@ function update() {
     playSound('levelUp');
     particles.starBurst(W / 2, H / 2);
     FX.pulse = 1;
+    banner = 100; bannerTxt = `LEVEL ${currentLevel}`;
     levelBadge && levelBadge.classList.remove('bump');
     requestAnimationFrame(() => levelBadge && levelBadge.classList.add('bump'));
   }
@@ -249,23 +291,31 @@ function update() {
   // Scroll BG
   bgScroll += speed * 0.35; FX.update(speed);
 
-  // Monkey physics
+  // Monkey physics: jump, double jump, duck, fast-fall
+  const down = keys.ArrowDown || keys.KeyS;
+  ducking = MONKEY.onGround && (down || duckTimer > 0);
+  if (duckTimer > 0) duckTimer--;
   if (jumpQueued) {
     jumpQueued = false;
-    if (MONKEY.onGround) {
-      MONKEY.vy = -13.5;
-      MONKEY.onGround = false;
+    if (MONKEY.onGround || jumps < 2) {
+      const second = !MONKEY.onGround;
+      MONKEY.vy = second ? -11.5 : -13.5;
+      MONKEY.onGround = false; ducking = false; jumps++;
       playSound('jump');
-      particles.burst(MONKEY.x, GROUND_Y - 2, { count: 6, colors: ['#a89268', '#cdb98a'], size: 4, speed: 2 });
+      particles.burst(MONKEY.x, MONKEY.y + MONKEY_H, second
+        ? { count: 12, colors: ['#fff', '#bfe8ff'], size: 3, speed: 3.2 }
+        : { count: 6, colors: ['#a89268', '#cdb98a'], size: 4, speed: 2 });
     }
   }
+  if (jumps >= 2 && !MONKEY.onGround) spin += 0.32;
+  if (!MONKEY.onGround && down) MONKEY.vy += 0.9;
   const wasAir = !MONKEY.onGround;
   MONKEY.vy += 0.68;
   MONKEY.y  += MONKEY.vy;
   if (MONKEY.y >= GROUND_Y - MONKEY_H) {
     MONKEY.y        = GROUND_Y - MONKEY_H;
     MONKEY.vy       = 0;
-    MONKEY.onGround = true;
+    MONKEY.onGround = true; jumps = 0; spin = 0;
     if (wasAir) {
       landSquash = 1;
       particles.burst(MONKEY.x, GROUND_Y - 2, { count: 8, colors: ['#8d6e4a', '#b59a6b'], size: 4, speed: 2.5 });
@@ -286,10 +336,15 @@ function update() {
   // Spawn
   spawnFood();
   spawnObstacle();
+  spawnPower();
 
   // Move & check food
   for (let i = foods.length - 1; i >= 0; i--) {
     const f = foods[i];
+    if (magnet > 0) {
+      const dx = MONKEY.x - f.x, dy = MONKEY.y + MONKEY_H / 2 - f.y, d = Math.hypot(dx, dy);
+      if (d < 260 && d > 1) { f.x += dx / d * 6; f.y += dy / d * 6; }
+    }
     f.x   -= speed + 1.2;
     f.life--;
     f.bob += 0.07;
@@ -297,10 +352,12 @@ function update() {
 
     const fy = f.y + Math.sin(f.bob) * 4; // bobbing
     if (rectsOverlap(
-      MONKEY.x - MONKEY_W / 2, MONKEY.y, MONKEY_W, MONKEY_H,
+      MONKEY.x - MONKEY_W / 2, boxY(), MONKEY_W, boxH(),
       f.x - f.w / 2, fy - f.h / 2, f.w, f.h
     )) {
-      const pts = f.bunch ? 5 : 2;
+      combo++; comboTimer = 100; comboPop = 1;
+      const mult = Math.min(4, 1 + Math.floor(combo / 5)) * (x2 > 0 ? 2 : 1);
+      const pts = (f.bunch ? 5 : 2) * mult;
       score += pts;
       showFloat(`+${pts}`, f.x, fy - 20, f.bunch ? '#FF8F00' : '#FFD700');
       domPopup(`+${pts}`, f.x, fy - 20);
@@ -327,16 +384,24 @@ function update() {
   // Move & check obstacles
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const o = obstacles[i];
-    o.x   -= speed + 2;
+    o.x   -= speed + (o.type === 'bird' ? 3.5 : 2);
     o.life--;
     o.wobble = hitCooldown > 0 ? Math.sin(framesPassed * 0.3) * 3 : 0;
     if (o.life <= 0 || o.x < -80) { obstacles.splice(i, 1); continue; }
 
     if (hitCooldown === 0 && rectsOverlap(
-      MONKEY.x - MONKEY_W / 2 + MONKEY_HIT_SHRINK, MONKEY.y + MONKEY_HIT_SHRINK,
-      MONKEY_W - MONKEY_HIT_SHRINK * 2, MONKEY_H - MONKEY_HIT_SHRINK,
+      MONKEY.x - MONKEY_W / 2 + MONKEY_HIT_SHRINK, boxY() + MONKEY_HIT_SHRINK,
+      MONKEY_W - MONKEY_HIT_SHRINK * 2, boxH() - MONKEY_HIT_SHRINK,
       o.x - o.w / 2, o.y, o.w, o.h
     )) {
+      combo = 0;
+      if (shield) {
+        shield = false; hitCooldown = 45; playSound('milestone');
+        particles.burst(MONKEY.x, MONKEY.y + 34, { count: 18, colors: ['#7fd4ff', '#fff'], size: 5, speed: 4 });
+        showFloat('SHIELD!', MONKEY.x, MONKEY.y - 10, '#7fd4ff');
+        obstacles.splice(i, 1);
+        continue;
+      }
       lives--;
       hitCooldown   = 90;
       shakeDuration = 20;
@@ -354,6 +419,16 @@ function update() {
     }
   }
 
+  // Power-ups
+  for (let i = powerups.length - 1; i >= 0; i--) {
+    const p = powerups[i];
+    p.x -= speed + 1.2; p.bob += 0.08;
+    if (p.x < -60) { powerups.splice(i, 1); continue; }
+    if (rectsOverlap(MONKEY.x - MONKEY_W / 2, boxY(), MONKEY_W, boxH(), p.x - 18, p.y - 18, 36, 36)) {
+      applyPower(p); powerups.splice(i, 1);
+    }
+  }
+
   // Particles
   particles.update();
 
@@ -366,7 +441,7 @@ function update() {
 }
 
 function triggerGameOver() {
-  state = 'gameover';
+  state = 'gameover'; banner = 0;
   isNewHighScore = Save.saveHighScore(score);
   updateHUD();
   playSound('gameOver');
@@ -374,7 +449,7 @@ function triggerGameOver() {
 
 // ---- RENDER ------------------------------------------------
 function render() {
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.setTransform(SC, 0, 0, SC, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
   ctx.save();
@@ -389,13 +464,17 @@ function render() {
   drawBackground();
   FX.drawMid(ctx, W, GROUND_Y);
   drawGround();
+  if (state === 'playing') FX.speedLines(ctx, W, GROUND_Y, speed, framesPassed);
   drawFood();
+  drawPowerups();
   drawObstacles();
   drawMonkey();
+  drawAuras();
   particles.draw(ctx);
   drawFloats();
   FX.drawNear(ctx, W, H, GROUND_Y, currentLevel, flash);
   drawHUDCanvas();
+  drawPowerHUD();
 
   if (state === 'start')    drawStartScreen();
   if (state === 'gameover') drawGameOverScreen();
@@ -465,6 +544,7 @@ function drawFood() {
 // ---- OBSTACLES ---------------------------------------------
 function drawObstacles() {
   for (const o of obstacles) {
+    if (o.type === 'bird') { drawBird(o); continue; }
     ctx.save();
     ctx.translate(o.x + o.wobble, o.y + o.h / 2);
     ctx.rotate(-o.x * 0.045); // rolling stone
@@ -499,12 +579,13 @@ function drawMonkey() {
   ctx.restore();
 
   // squash & stretch + tilt, anchored at the feet
-  const sy = 1 + (air ? Math.min(Math.abs(MONKEY.vy) * 0.012, 0.16) : 0) - landSquash * 0.22;
+  const sy = 1 + (air ? Math.min(Math.abs(MONKEY.vy) * 0.012, 0.16) : 0) - landSquash * 0.22 - (ducking ? 0.36 : 0);
   ctx.save();
   if (hitCooldown > 0 && Math.floor(framesPassed / 4) % 2 === 0) ctx.globalAlpha = 0.4; // hit blink
   ctx.translate(MONKEY.x, feetY);
-  ctx.rotate(air ? MONKEY.vy * 0.018 : 0);
-  ctx.scale(1 / sy, sy);
+  ctx.rotate(air ? MONKEY.vy * 0.018 : (ducking ? 0 : 0.05 + Math.sin(framesPassed * 0.35) * 0.02));
+  if (spin) { ctx.translate(0, -MONKEY_H / 2); ctx.rotate(spin); ctx.translate(0, MONKEY_H / 2); } // double-jump flip
+  ctx.scale(ducking ? 1.2 : 1 / sy, sy);
   if (img && img.complete && img.naturalWidth > 0) {
     const k = MONKEY_H / 300; // same scale for every frame: no per-frame stretching
     ctx.drawImage(img, -img.naturalWidth * k / 2, -img.naturalHeight * k, img.naturalWidth * k, img.naturalHeight * k);
@@ -700,6 +781,85 @@ function drawPauseScreen() {
   ctx.fillText('PAUSED', W / 2, H / 2);
   ctx.fillStyle = '#fff'; ctx.font = "18px 'Nunito', sans-serif";
   ctx.fillText('Press P, Space or tap to resume', W / 2, H / 2 + 34);
+}
+
+// ---- POWER-UPS ---------------------------------------------
+const PW = { shield: ['🛡️', '#7fd4ff', 'SHIELD!'], magnet: ['🧲', '#ff6b6b', 'MAGNET!'], x2: ['⭐', '#ffd54a', 'DOUBLE POINTS!'], heart: ['❤️', '#ff7aa8', '+1 LIFE!'] };
+function spawnPower() {
+  if (--nextPower > 0) return;
+  nextPower = 500 + Math.random() * 400;
+  let type = ['shield', 'magnet', 'x2', 'heart'][Math.random() * 4 | 0];
+  if (type === 'heart' && lives >= 3) type = 'shield';
+  powerups.push({ type, x: W + 20, y: 190 + Math.random() * 60, bob: 0 });
+}
+function applyPower(p) {
+  if (p.type === 'shield') shield = true;
+  if (p.type === 'magnet') magnet = 480;
+  if (p.type === 'x2')     x2 = 600;
+  if (p.type === 'heart')  lives = Math.min(3, lives + 1);
+  showToast(PW[p.type][2]); playSound('levelUp');
+  particles.burst(p.x, p.y, { count: 16, colors: [PW[p.type][1], '#fff'], size: 5, speed: 4 });
+  updateHUD();
+}
+function drawPowerups() {
+  ctx.save();
+  for (const p of powerups) {
+    const [icon, col] = PW[p.type], y = p.y + Math.sin(p.bob) * 6, r = 22 + Math.sin(p.bob * 2) * 2;
+    const g = ctx.createRadialGradient(p.x, y, 3, p.x, y, r + 12);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = 0.75; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, y, r + 12, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1; ctx.font = '26px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.fillText(icon, p.x, y + 1);
+  }
+  ctx.restore();
+}
+function drawAuras() {
+  const cy = MONKEY.y + MONKEY_H / 2, t = framesPassed;
+  ctx.save();
+  if (shield) {
+    ctx.strokeStyle = `rgba(127,212,255,${0.7 + Math.sin(t * 0.2) * 0.2})`; ctx.fillStyle = 'rgba(127,212,255,0.14)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(MONKEY.x, cy, 46 + Math.sin(t * 0.15) * 2, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  if (magnet > 0) {
+    ctx.strokeStyle = 'rgba(255,107,107,0.45)'; ctx.setLineDash([6, 8]); ctx.lineDashOffset = -t; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(MONKEY.x, cy, 70 + Math.sin(t * 0.1) * 6, 0, 7); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawBird(o) {
+  const fl = Math.sin(framesPassed * 0.35 + o.ph);
+  ctx.save(); ctx.translate(o.x, o.y + o.h / 2 + fl * 3);
+  ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 11, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(-17, -3, 8, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.moveTo(-24, -3); ctx.lineTo(-33, 0); ctx.lineTo(-24, 2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-19, -5, 2.2, 0, 7); ctx.fill();
+  ctx.fillStyle = '#922b21'; ctx.beginPath(); ctx.moveTo(-4, -2); ctx.quadraticCurveTo(6, -24 * fl - 4, 18, -2); ctx.lineTo(8, 3); ctx.fill();
+  ctx.restore();
+}
+function drawPowerHUD() {
+  ctx.save(); ctx.textAlign = 'left'; ctx.font = '16px Arial';
+  let x = 10;
+  const pill = (icon, frac, col) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRect(ctx, x, 8, 92, 28, 8); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(icon, x + 7, 28);
+    ctx.fillStyle = col; ctx.fillRect(x + 32, 18, 52 * frac, 8); x += 100;
+  };
+  if (shield) pill('🛡️', 1, '#7fd4ff');
+  if (magnet > 0) pill('🧲', magnet / 480, '#ff6b6b');
+  if (x2 > 0) pill('⭐', x2 / 600, '#ffd54a');
+  ctx.restore();
+  if (combo >= 3) {
+    const m = Math.min(4, 1 + Math.floor(combo / 5)), t2 = `COMBO ${combo}  x${m}`;
+    ctx.save(); ctx.translate(W / 2, 34); const sc = 1 + comboPop * 0.25; ctx.scale(sc, sc);
+    ctx.textAlign = 'center'; ctx.font = "26px 'Bangers', cursive"; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillStyle = m > 1 ? '#ff9f1a' : '#fff'; ctx.strokeText(t2, 0, 0); ctx.fillText(t2, 0, 0); ctx.restore();
+  }
+  if (banner > 0) {
+    const p = banner / 100, e = p > 0.85 ? (1 - p) / 0.15 : p < 0.25 ? p / 0.25 : 1;
+    ctx.save(); ctx.globalAlpha = e; ctx.translate(W / 2, 120); ctx.scale(0.8 + 0.2 * e, 0.8 + 0.2 * e);
+    ctx.textAlign = 'center'; ctx.font = "68px 'Bangers', cursive"; ctx.lineWidth = 7; ctx.strokeStyle = '#5a3a00'; ctx.fillStyle = '#FFD700';
+    ctx.strokeText(bannerTxt, 0, 0); ctx.fillText(bannerTxt, 0, 0); ctx.restore();
+  }
 }
 
 // ---- BOOT --------------------------------------------------

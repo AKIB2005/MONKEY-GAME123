@@ -70,6 +70,14 @@ Made with ❤️ | Originally built on Whitehat Jr, enhanced with modern JS
 - **Animation:** 3-layer parallax jungle, seamless mirrored background, swaying vines, light shafts, falling leaves, foreground fronds, squash & stretch + tilt, landing/run dust, soft ground shadow, spinning bananas, rolling stones, hit-stop + red flash, level-up zoom pulse, golden-hour grading at higher levels, animated title screen.
 - **Added:** pause (P / Esc / tab switch), responsive canvas with sharp rendering on phones, favicon, optimized images.
 
+## v2 additions
+- **Big screen:** the game now fills your window (up to 1600px wide), stays sharp on retina, and has a fullscreen button (F).
+- **Controls:** Space/Up/W jump, press again in the air for a **double jump + flip**, Down/S to **duck** (swipe down on mobile) or **fast-fall** in the air.
+- **New obstacle:** low-flying **birds** from level 2. Duck under them.
+- **Power-ups:** 🛡️ shield, 🧲 magnet, ⭐ double points, ❤️ extra life.
+- **Combo:** chain bananas for up to x4 points.
+- **Animation:** speed lines at high speed, running bounce and lean, level banners.
+
 ## Deploy on Vercel
 1. Push this folder to GitHub, then on vercel.com choose **Add New → Project** and import it. No framework, build command or output setting is needed (`vercel.json` handles it).
 2. Or from this folder run: `npx vercel --prod`

@@ -94,5 +94,14 @@ const FX = (() => {
     ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
     if (flash > 0.02) { ctx.fillStyle = `rgba(255,30,30,${flash * 0.3})`; ctx.fillRect(0, 0, W, H); }
   };
+  api.speedLines = (ctx, W, GY, speed, f) => {
+    if (speed < 8) return;
+    ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.22, (speed - 8) * 0.04)})`; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i < 7; i++) {
+      const y = 30 + ((i * 47 + f * 3) % (GY - 40)), x = mod(i * 131 - f * speed * 2.2, W + 120) - 60;
+      ctx.moveTo(x, y); ctx.lineTo(x + 40 + speed * 3, y);
+    }
+    ctx.stroke();
+  };
   return api;
 })();
